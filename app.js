@@ -171,21 +171,58 @@ document.addEventListener('DOMContentLoaded', () => {
         promptList.innerHTML = '';
         cat.sections.forEach((section, sIdx) => {
             if (filter !== 'all' && parseInt(filter) !== sIdx) return;
-            let html = `<div class="prompt-section"><h3 class="prompt-section__title">${section.title}<span class="prompt-section__badge">${section.items.length}件</span></h3>`;
+
+            // Count only prompt-type items for the badge
+            const promptCount = section.items.filter(i => i.type === 'prompt').length;
+            const manualCount = section.items.filter(i => i.type === 'manual').length;
+            const badgeText = manualCount > 0 && promptCount > 0
+                ? `${promptCount}件のプロンプト / ${manualCount}件の解説`
+                : manualCount > 0 ? `${manualCount}件の解説` : `${promptCount}件`;
+
+            let html = `<div class="prompt-section"><h3 class="prompt-section__title">${section.title}<span class="prompt-section__badge">${badgeText}</span></h3>`;
+
             section.items.forEach((item, iIdx) => {
                 const id = `${key}-${sIdx}-${iIdx}`;
-                const promptHtml = highlightBrackets(item.prompt);
-                const copyCount = getCopyCount(id);
-                const copyBadge = copyCount > 0 ? `<span class="copy-count-badge" title="コピーされた回数">${copyCount}回コピー</span>` : '';
-                const memo = getMemo(id);
-                const memoVal = memo ? escapeHtml(memo) : '';
-                html += `
-          <div class="prompt-item" id="pi-${id}">
+
+                if (item.type === 'manual') {
+                    // ===== MANUAL ITEM (no copy button) =====
+                    const contentHtml = highlightBrackets(item.prompt);
+                    html += `
+          <div class="prompt-item prompt-item--manual" id="pi-${id}">
             <div class="prompt-item__header" onclick="window.APP.toggleItem('pi-${id}')">
-              <span class="prompt-item__title">${item.title}${copyBadge}</span>
+              <span class="prompt-item__title"><span class="prompt-item__type-badge prompt-item__type-badge--manual">💡 解説</span>${item.title}</span>
               <svg class="prompt-item__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="prompt-item__body"><div class="prompt-item__content">
+              <div class="prompt-item__manual-text">${contentHtml}</div>
+            </div></div>
+          </div>`;
+                } else {
+                    // ===== PROMPT ITEM (with copy, step, instructions) =====
+                    const promptHtml = highlightBrackets(item.prompt);
+                    const copyCount = getCopyCount(id);
+                    const copyBadge = copyCount > 0 ? `<span class="copy-count-badge" title="コピーされた回数">${copyCount}回コピー</span>` : '';
+                    const memo = getMemo(id);
+                    const memoVal = memo ? escapeHtml(memo) : '';
+
+                    // Step indicator
+                    const stepHtml = item.step
+                        ? `<span class="prompt-item__step-badge">${item.stepLabel}</span>`
+                        : '';
+
+                    // Instructions
+                    const instrHtml = item.instructions
+                        ? `<div class="prompt-item__instructions"><span class="prompt-item__instructions-icon">📌</span>${item.instructions}</div>`
+                        : '';
+
+                    html += `
+          <div class="prompt-item prompt-item--prompt" id="pi-${id}">
+            <div class="prompt-item__header" onclick="window.APP.toggleItem('pi-${id}')">
+              <span class="prompt-item__title">${stepHtml}<span class="prompt-item__type-badge prompt-item__type-badge--prompt">📋 プロンプト</span>${item.title}${copyBadge}</span>
+              <svg class="prompt-item__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="prompt-item__body"><div class="prompt-item__content">
+              ${instrHtml}
               <div class="prompt-item__prompt">
                 <button class="copy-btn" onclick="event.stopPropagation();window.APP.copyPrompt(this,'${id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>コピー</button>
                 ${promptHtml}
@@ -202,6 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
             </div></div>
           </div>`;
+                }
             });
             html += '</div>';
             promptList.innerHTML += html;
